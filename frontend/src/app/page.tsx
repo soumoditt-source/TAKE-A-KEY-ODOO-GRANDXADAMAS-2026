@@ -107,6 +107,7 @@ function LoginScreen({ onLogin, busy, error }: { onLogin: (email: string, passwo
 
 export default function App() {
   const store = useRideStore();
+  const [hasMounted, setHasMounted] = useState(false);
   const [introDismissed, setIntroDismissed] = useState(false);
   const [view, setView] = useState<WorkspaceView>('find');
   const [loginBusy, setLoginBusy] = useState(false);
@@ -126,6 +127,10 @@ export default function App() {
   const [topUpAmount, setTopUpAmount] = useState(500);
   const [offer, setOffer] = useState({ vehicleId: '', departure: '', seats: 1, fare: 120 });
   const [newVehicle, setNewVehicle] = useState({ plate: '', capacity: 4, color: 'Obsidian Black', type: 'Sedan' });
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const refreshWorkspace = async () => {
     if (!store.token) return;
@@ -210,6 +215,19 @@ export default function App() {
     ['My trips', trips.length, 'Booked journeys'],
     ['Wallet', `₹${Math.round(wallet.balance).toLocaleString('en-IN')}`, 'Available balance'],
   ], [rides, trips, wallet.balance]);
+
+  if (!hasMounted) {
+    return (
+      <main className="login-shell" suppressHydrationWarning>
+        <section className="login-card">
+          <div className="brand-lockup">
+            <span className="brand-mark">TK</span>
+            <span>TAKE-A-KEY</span>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   if (!store.user) {
     return (
