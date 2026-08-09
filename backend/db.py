@@ -181,6 +181,96 @@ def _seed_demo_data(connection: sqlite3.Connection) -> None:
     )
 
 
+def _upsert_demo_marketplace(connection: sqlite3.Connection) -> None:
+    if not DEMO_MODE:
+        return
+
+    now = datetime.now(timezone.utc)
+    users = [
+        ("d-1001", "arup.roy@tcs.com", "Arup Roy", "TCS_KOL", "admin", 1500.0),
+        ("d-1003", "raj.mukherjee@tcs.com", "Raj Mukherjee", "TCS_KOL", "employee", 500.0),
+        ("d-1004", "isha.mitra@tcs.com", "Isha Mitra", "TCS_KOL", "employee", 950.0),
+        ("d-1005", "koushik.pal@tcs.com", "Koushik Pal", "TCS_KOL", "employee", 720.0),
+        ("d-1006", "meera.nair@tcs.com", "Meera Nair", "TCS_KOL", "employee", 1100.0),
+        ("p-2001", "vikram.sen@tcs.com", "Vikram Sen", "TCS_KOL", "employee", 3000.0),
+        ("p-2003", "ananya.ghosh@tcs.com", "Ananya Ghosh", "TCS_KOL", "employee", 100.0),
+        ("d-1002", "sneha.das@cognizant.com", "Sneha Das", "COG_KOL", "employee", 200.0),
+        ("p-2002", "priya.bose@cognizant.com", "Priya Bose", "COG_KOL", "employee", 800.0),
+    ]
+    connection.executemany(
+        """INSERT INTO users (id, email, full_name, company_id, role, wallet_balance)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            email = excluded.email,
+            full_name = excluded.full_name,
+            company_id = excluded.company_id,
+            role = excluded.role""",
+        users,
+    )
+
+    vehicles = [
+        ("v-3001", "d-1001", "WB02AB1234", 3, "Obsidian Black", "Sedan"),
+        ("v-3003", "d-1003", "WB26EF9012", 40, "Graphite Grey", "Bus"),
+        ("v-3004", "d-1004", "WB08GH4411", 4, "Pearl White", "Sedan"),
+        ("v-3005", "d-1005", "WB12KL7788", 6, "Midnight Blue", "Pool"),
+        ("v-3006", "d-1006", "WB20MN9090", 12, "Silver Green", "Shuttle"),
+        ("v-3002", "d-1002", "WB06CD5678", 12, "Arctic White", "Shuttle"),
+    ]
+    connection.executemany(
+        """INSERT INTO vehicles (id, owner_id, license_plate, capacity, color, vehicle_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            owner_id = excluded.owner_id,
+            license_plate = excluded.license_plate,
+            capacity = excluded.capacity,
+            color = excluded.color,
+            vehicle_type = excluded.vehicle_type""",
+        vehicles,
+    )
+
+    rides = [
+        ("r-demo-fast", "d-1004", "v-3004", 22.5689, 88.4798, 22.5510, 88.3533, 1, 190.0, "scheduled"),
+        ("r-demo-value", "d-1003", "v-3003", 22.5720, 88.4750, 22.5839, 88.3426, 12, 95.0, "active"),
+        ("r-demo-balanced", "d-1001", "v-3001", 22.5696, 88.4815, 22.5135, 88.4031, 2, 140.0, "scheduled"),
+        ("r-demo-social", "d-1005", "v-3005", 22.5852, 88.4648, 22.5413, 88.3629, 4, 120.0, "scheduled"),
+        ("r-demo-premium", "d-1006", "v-3006", 22.5608, 88.4902, 22.5391, 88.3655, 8, 160.0, "scheduled"),
+        ("r-demo-late", "d-1001", "v-3001", 22.5755, 88.4712, 22.5510, 88.3533, 1, 110.0, "scheduled"),
+    ]
+    rows = [
+        (
+            ride_id,
+            driver_id,
+            vehicle_id,
+            origin_lat,
+            origin_lon,
+            dest_lat,
+            dest_lon,
+            (now + timedelta(minutes=35 + index * 18)).isoformat(),
+            seats,
+            fare,
+            status,
+        )
+        for index, (ride_id, driver_id, vehicle_id, origin_lat, origin_lon, dest_lat, dest_lon, seats, fare, status) in enumerate(rides)
+    ]
+    connection.executemany(
+        """INSERT INTO rides
+        (id, driver_id, vehicle_id, origin_lat, origin_lon, dest_lat, dest_lon, departure_time, available_seats, fare, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            driver_id = excluded.driver_id,
+            vehicle_id = excluded.vehicle_id,
+            origin_lat = excluded.origin_lat,
+            origin_lon = excluded.origin_lon,
+            dest_lat = excluded.dest_lat,
+            dest_lon = excluded.dest_lon,
+            departure_time = excluded.departure_time,
+            available_seats = excluded.available_seats,
+            fare = excluded.fare,
+            status = excluded.status""",
+        rows,
+    )
+
+
 def _refresh_demo_schedule(connection: sqlite3.Connection) -> None:
     if not DEMO_MODE:
         return
@@ -209,6 +299,7 @@ def init_database() -> None:
         _ensure_column(connection, "transactions", "type", "TEXT NOT NULL DEFAULT 'payment'")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id, created_at)")
         _seed_demo_data(connection)
+        _upsert_demo_marketplace(connection)
         _refresh_demo_schedule(connection)
     finally:
         connection.close()
