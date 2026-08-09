@@ -20,7 +20,7 @@ From this directory, double-click `launch.bat`, or run:
 .\launch.ps1
 ```
 
-Open `http://localhost:3000`. The API health check is `http://localhost:8000/health`.
+Open `http://localhost:5000`. The API health check is `http://localhost:7000/health`.
 
 The local database is created at `backend/takeakey.db` and is ignored by Git. Demo accounts:
 

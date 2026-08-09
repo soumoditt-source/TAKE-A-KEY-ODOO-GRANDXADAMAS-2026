@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { apiFetch } from '../lib/api';
 import { RideMatch, Trip, User, useRideStore, Vehicle, WorkspaceView } from '../store/useRideStore';
+import { AnimatePresence } from 'framer-motion';
+import IntroScreen from '../components/IntroScreen';
 
 const MapView = dynamic(() => import('../components/MapView'), { ssr: false });
 
@@ -105,6 +107,7 @@ function LoginScreen({ onLogin, busy, error }: { onLogin: (email: string, passwo
 
 export default function App() {
   const store = useRideStore();
+  const [introDismissed, setIntroDismissed] = useState(false);
   const [view, setView] = useState<WorkspaceView>('find');
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginError, setLoginError] = useState('');
@@ -208,7 +211,16 @@ export default function App() {
     ['Wallet', `₹${Math.round(wallet.balance).toLocaleString('en-IN')}`, 'Available balance'],
   ], [rides, trips, wallet.balance]);
 
-  if (!store.user) return <LoginScreen onLogin={login} busy={loginBusy} error={loginError} />;
+  if (!store.user) {
+    return (
+      <>
+        <AnimatePresence>
+          {!introDismissed && <IntroScreen key="intro" onOpen={() => setIntroDismissed(true)} />}
+        </AnimatePresence>
+        <LoginScreen onLogin={login} busy={loginBusy} error={loginError} />
+      </>
+    );
+  }
 
   const findView = (
     <><Heading eyebrow="Find a ride" title="Move through the city, together." detail="Drop two pins. We rank the lowest-detour routes across your company fleet." /><div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_410px]"><div className="min-h-[560px]"><MapView /></div><div className="panel flex max-h-[680px] flex-col"><div className="mb-4 grid grid-cols-2 gap-2"><div className="route-chip pickup"><small>Pickup</small><strong>{store.origin ? `${store.origin.lat.toFixed(4)}, ${store.origin.lng.toFixed(4)}` : 'Click the map'}</strong></div><div className="route-chip dropoff"><small>Destination</small><strong>{store.destination ? `${store.destination.lat.toFixed(4)}, ${store.destination.lng.toFixed(4)}` : 'Click the map'}</strong></div></div><div className="flex gap-2"><button onClick={search} disabled={store.isSearching} className="primary-button flex-1">{store.isSearching ? 'Computing routes…' : 'Find best match ↗'}</button><button onClick={() => { store.setOrigin(null); store.setDestination(null); store.setMatches([]); store.setActiveRoute(null); setSelectedMatch(null); }} className="secondary-button">Reset</button></div>{searchError && <p className="mt-3 rounded-xl border border-rose-300/20 bg-rose-300/10 p-3 text-xs text-rose-100">{searchError}</p>}<div className="mt-5 flex-1 space-y-3 overflow-y-auto pr-1">{store.matches.length === 0 ? <div className="empty-state"><span className="empty-icon">↗</span><strong>Routes appear here</strong><p>Live road geometry when online; predictable local scoring when offline.</p></div> : store.matches.map((match) => { const selected = selectedMatch?.ride_id === match.ride_id; return <div key={match.ride_id} className={`ride-card ${selected ? 'selected' : ''}`}><button className="w-full text-left" onClick={() => { setSelectedMatch(match); setBidFare(match.fare || 120); store.setActiveRoute(match.telemetry, match.ride_id); setBidStatus('idle'); }}><div className="flex items-start gap-3"><span className="profile-avatar small">{initials(match.driver_name)}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm text-white">{match.driver_name}</strong><small className="mt-1 block text-[10px] uppercase tracking-[0.12em] text-slate-500">{match.vehicle_type} · {match.license_plate}</small></span><span className="text-right"><strong className="block text-lg text-white">{Math.max(1, Math.round(match.telemetry.pickup_eta_seconds / 60))}<small className="ml-1 text-[9px] text-slate-500">MIN</small></strong><small className="text-[10px] text-lime-200">₹{match.fare || bidFare}</small></span></div><div className="mt-4 flex items-center justify-between text-[10px] uppercase tracking-[0.13em] text-slate-500"><span><i className="legend-dot bg-lime-300" />{match.available_seats} seats open</span><span>{match.detour_km.toFixed(1)} km detour</span></div></button>{selected && <div className="mt-4 border-t border-white/10 pt-4"><div className="mb-3 flex items-center justify-between"><span className="eyebrow">Your offer per seat</span><strong className="text-lg text-white">₹{bidFare}</strong></div><input type="range" min="50" max="500" step="10" value={bidFare} onChange={(event) => setBidFare(Number(event.target.value))} className="mb-4 w-full accent-sky-300" /><button onClick={requestSeat} disabled={bidStatus === 'sending' || bidStatus === 'sent'} className="secondary-button w-full">{bidStatus === 'sending' ? 'Sending request…' : bidStatus === 'sent' ? 'Request sent · awaiting driver' : bidStatus === 'error' ? 'Try request again' : 'Request this ride'}</button></div>}</div>; })}</div></div></div></>
@@ -227,6 +239,9 @@ export default function App() {
 
   return (
     <>
+      <AnimatePresence>
+        {!introDismissed && <IntroScreen key="intro" onOpen={() => setIntroDismissed(true)} />}
+      </AnimatePresence>
       {view === 'trips' && trips[0] && <div className="fixed bottom-5 right-5 z-[1100] hidden rounded-2xl border border-white/10 bg-[#090d14]/95 p-3 shadow-2xl backdrop-blur-xl sm:block"><p className="mb-2 text-[9px] font-semibold uppercase tracking-[.16em] text-slate-500">Latest booking pass</p><div className="rounded-lg bg-white p-2"><QRCodeSVG value={`takeakey://booking/${trips[0].booking_id}?user=${store.user.id}`} size={96} /></div><p className="mt-2 max-w-[112px] truncate text-[9px] text-slate-500">{trips[0].booking_id}</p></div>}
     <main className="app-shell">
       <aside className="sidebar"><div className="brand-lockup px-2"><span className="brand-mark">TK</span><span>TAKE-A-KEY</span></div><div className="mt-12 px-2"><p className="eyebrow">Your workspace</p><div className="mt-3 flex items-center gap-3"><span className="profile-avatar">{initials(store.user.full_name)}</span><span><strong className="block text-sm text-white">{store.user.full_name}</strong><small className="mt-1 block text-[10px] uppercase tracking-[0.12em] text-slate-500">{store.user.company_id}</small></span></div></div><nav className="mt-10 space-y-1">{navItems.map((item) => <button key={item.id} onClick={() => setView(item.id)} className={`nav-item ${view === item.id ? 'active' : ''}`}><span className="nav-glyph">{item.glyph}</span>{item.label}{item.id === 'requests' && requests.length > 0 && <span className="ml-auto rounded-full bg-rose-400 px-1.5 py-0.5 text-[9px] font-bold text-slate-950">{requests.length}</span>}</button>)}</nav><div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="mb-2 flex items-center justify-between"><span className="eyebrow">Network</span><span className="h-2 w-2 rounded-full bg-lime-300 shadow-[0_0_12px_#b8f36b]" /></div><p className="text-xs leading-5 text-slate-400">Private company fleet protected by tenant-aware access rules.</p></div><button onClick={store.logout} className="mt-5 px-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 transition hover:text-white">Sign out ↗</button></aside>

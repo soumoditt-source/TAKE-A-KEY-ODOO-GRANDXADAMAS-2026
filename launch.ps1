@@ -22,11 +22,11 @@ if (-not (Test-Path -LiteralPath (Join-Path $frontendRoot 'node_modules'))) {
   if ($frontendInstallExit -ne 0) { throw 'Frontend dependency installation failed.' }
 }
 
-$backendCommand = "Set-Location -LiteralPath '$backendRoot'; & '$pythonPath' -m uvicorn main:app --reload --host 127.0.0.1 --port 8000"
+$backendCommand = "Set-Location -LiteralPath '$backendRoot'; & '$pythonPath' -m uvicorn main:app --reload --host 127.0.0.1 --port 7000"
 Start-Process powershell.exe -ArgumentList @('-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $backendCommand) | Out-Null
 
-Write-Host 'API started at http://localhost:8000' -ForegroundColor Green
-Write-Host 'Starting Next.js at http://localhost:3000' -ForegroundColor Green
+Write-Host 'API started at http://localhost:7000' -ForegroundColor Green
+Write-Host 'Starting Next.js at http://localhost:5000' -ForegroundColor Green
 Push-Location $frontendRoot
-npm run dev
+npm run dev -- -p 5000
 Pop-Location
