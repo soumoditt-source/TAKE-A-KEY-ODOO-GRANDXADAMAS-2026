@@ -41,6 +41,114 @@ Use an online connection for road geometry. To run fully offline, set `OSRM_ENAB
 
 Seat acceptance runs in a SQLite `BEGIN IMMEDIATE` transaction and checks the remaining seat count in the same update. PostgreSQL deployment should retain the equivalent row-lock/transaction boundary.
 
+## Production architecture
+
+```mermaid
+flowchart TB
+  subgraph FE[Next.js client workspace]
+    A[Authentication validator]
+    B[Rider booking and fare pitch]
+    C[Driver approval console]
+    D[Live map and QR pass]
+  end
+
+  subgraph API[FastAPI service layer]
+    E[JWT auth middleware]
+    F[RBAC admin guards]
+    G[ABAC tenant filters]
+    H[OSRM or Haversine route engine]
+    I[Atomic booking and wallet services]
+  end
+
+  subgraph DB[Relational data layer]
+    J[(SQLite local demo)]
+    K[(PostgreSQL + PostGIS production)]
+    L[RLS policies and indexes]
+  end
+
+  A --> E
+  B --> H
+  C --> I
+  D --> H
+  E --> F
+  E --> G
+  F --> K
+  G --> K
+  H --> J
+  I --> J
+  K --> L
+```
+
+## Database schema
+
+```mermaid
+erDiagram
+  users ||--o{ vehicles : owns
+  users ||--o{ rides : drives
+  users ||--o{ ride_requests : requests
+  vehicles ||--o{ rides : assigned_to
+  rides ||--o{ ride_requests : receives
+  ride_requests ||--o| bookings : approved_into
+  rides ||--o{ bookings : reserves
+  users ||--o{ bookings : passenger
+  users ||--o{ transactions : ledger
+  bookings ||--o{ transactions : paid_by
+
+  users {
+    string id PK
+    string email
+    string full_name
+    string company_id
+    string role
+    decimal wallet_balance
+  }
+  vehicles {
+    string id PK
+    string owner_id FK
+    string license_plate
+    int capacity
+    string vehicle_type
+  }
+  rides {
+    string id PK
+    string driver_id FK
+    string vehicle_id FK
+    decimal origin_lat
+    decimal origin_lon
+    decimal dest_lat
+    decimal dest_lon
+    timestamp departure_time
+    int available_seats
+    decimal fare
+    string status
+  }
+  ride_requests {
+    string id PK
+    string ride_id FK
+    string passenger_id FK
+    decimal bid_fare
+    int seats_requested
+    string status
+  }
+  bookings {
+    string id PK
+    string ride_id FK
+    string passenger_id FK
+    string request_id FK
+    int seats
+    decimal fare
+    string payment_status
+  }
+  transactions {
+    string id PK
+    string booking_id FK
+    string user_id FK
+    decimal amount
+    string type
+    string status
+  }
+```
+
 ## Vercel and GitHub
 
 Vercel should use this repository with the project Root Directory left at the repo root; `vercel.json` builds the `frontend` workspace. Set `NEXT_PUBLIC_API_URL` to a reachable API URL. Vercel cannot keep the local SQLite/FastAPI process alive, so Vercel-only deployment is frontend-only until the API is moved to a free Python host or Supabase Edge Functions.
